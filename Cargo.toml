@@ -1,0 +1,22 @@
+[package]
+name = "piston"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+thiserror = "1.0.50"
+
+[dependencies.reqwest]
+version =  "0.11"
+features = ["json"]
+
+[dependencies.tokio]
+version = "1.34.0"
+features = ["macros", "rt-multi-thread"]
+
+
+[dependencies.serde]
+version = "1.0.19"
+features = ["derive"]
