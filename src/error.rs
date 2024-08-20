@@ -14,4 +14,6 @@ pub enum Error {
     BadRequest,
     #[error("Unkown error catched: {0}.")]
     Unknown(String),
+    #[error("Request error: {0}")]
+    Request(#[from] reqwest::Error),
 }

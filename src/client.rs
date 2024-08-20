@@ -41,23 +41,18 @@ pub struct Client {
 }
 
 impl Client {
-    async fn get_lang_version(&self) -> Result<Option<String>, reqwest::Error> {
+    async fn get_lang_version(&self) -> Result<Option<String>, Error> {
         let result = self.client.get(RUNTIMES_URL).send().await?;
         let json = result.json::<Vec<Language>>().await?;
         Ok(json
             .iter()
-            .find(|lang| {
-                (lang.language == self.language.to_owned())
-                    | (lang.aliases.contains(&self.language))
-            })
+            .find(|lang| (lang.language == self.language) | (lang.aliases.contains(&self.language)))
             .and_then(|l| Some(l.version.clone())))
     }
 
     pub async fn execute(self) -> Result<Response, Error> {
-        let version = match self.get_lang_version().await {
-            Err(err) => return Err(Error::Unknown(err.to_string())),
-            Ok(None) => return Err(Error::InvalidLanguage),
-            Ok(Some(v)) => v,
+        let Some(version) = self.get_lang_version().await? else {
+            return Err(Error::InvalidLanguage);
         };
         let mut files = vec![FileData {
             name: None,
@@ -82,11 +77,7 @@ impl Client {
                 files,
             })
             .send()
-            .await;
-        let data = match data {
-            Err(e) => return Err(Error::Unknown(e.to_string())),
-            Ok(res) => res,
-        };
+            .await?;
 
         match data.json::<ApiResponse>().await {
             Ok(ApiResponse::Good(response)) => Ok(response),
@@ -100,6 +91,7 @@ pub struct ClientBuilder {
     language: Option<String>,
     main_file: Option<String>,
     add_files: Vec<String>,
+    agent: String,
 }
 
 impl ClientBuilder {
@@ -108,6 +100,7 @@ impl ClientBuilder {
             language: None,
             main_file: None,
             add_files: vec![],
+            agent: "Automated Piston Agent".to_owned(),
         }
     }
 
@@ -132,12 +125,19 @@ impl ClientBuilder {
         }
     }
 
+    pub fn user_agent<T: ToString>(self, agent: T) -> ClientBuilder {
+        ClientBuilder {
+            agent: agent.to_string(),
+            ..self
+        }
+    }
+
     pub fn build(self) -> Result<Client, Error> {
         let language = self.language.ok_or(Error::MissingLang)?;
         let main_file = self.main_file.ok_or(Error::MissingMain)?;
 
         let http_client = reqwest::ClientBuilder::new()
-            .user_agent("fewwis-bot/@romancitodev")
+            .user_agent(&self.agent)
             .build()
             .unwrap();
         Ok(Client {
