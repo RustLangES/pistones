@@ -1,9 +1,9 @@
 use serde::Serialize;
 
 use crate::{
-    consts::{EXECUTE_URL, RUNTIMES_URL},
     error::Error,
     lang::{ApiResponse, Language, Response},
+    EXECUTE_PATH, RUNTIMES_PATH,
 };
 
 /// `POST` /api/v2/execute This endpoint requests execution of some arbitrary code.
@@ -33,16 +33,30 @@ struct FileData {
     content: String,
 }
 
+pub enum ApiVersion {
+    V2,
+}
+
 pub struct Client {
+    exec_url: String,
+    runtime_url: String,
     language: String,
     main_file: String,
     add_files: Vec<String>,
     client: reqwest::Client,
 }
 
+impl ToString for ApiVersion {
+    fn to_string(&self) -> String {
+        match self {
+            ApiVersion::V2 => format!("api/v2"),
+        }
+    }
+}
+
 impl Client {
     async fn get_lang_version(&self) -> Result<Option<String>, Error> {
-        let result = self.client.get(RUNTIMES_URL).send().await?;
+        let result = self.client.get(&self.runtime_url).send().await?;
         let json = result.json::<Vec<Language>>().await?;
         Ok(json
             .iter()
@@ -70,7 +84,7 @@ impl Client {
 
         let data = self
             .client
-            .post(EXECUTE_URL)
+            .post(&self.exec_url)
             .json(&Data {
                 language: self.language,
                 version,
@@ -91,6 +105,8 @@ pub struct ClientBuilder {
     language: Option<String>,
     main_file: Option<String>,
     add_files: Vec<String>,
+    base_url: String,
+    api_version: ApiVersion,
     agent: String,
 }
 
@@ -100,25 +116,41 @@ impl ClientBuilder {
             language: None,
             main_file: None,
             add_files: vec![],
+            base_url: "https://emkc.org".to_owned(),
+            api_version: ApiVersion::V2,
             agent: "Automated Piston Agent".to_owned(),
         }
     }
 
-    pub fn set_lang(self, lang: &str) -> ClientBuilder {
+    pub fn set_base_url<T: ToString>(self, url: T) -> ClientBuilder {
         ClientBuilder {
-            language: Some(lang.to_owned()),
+            base_url: url.to_string(),
             ..self
         }
     }
 
-    pub fn set_main_file(self, code: &str) -> ClientBuilder {
+    pub fn set_version(self, version: ApiVersion) -> ClientBuilder {
         ClientBuilder {
-            main_file: Some(code.to_owned()),
+            api_version: version,
             ..self
         }
     }
 
-    pub fn add_files(self, files: Vec<&str>) -> ClientBuilder {
+    pub fn set_lang<T: ToString>(self, lang: T) -> ClientBuilder {
+        ClientBuilder {
+            language: Some(lang.to_string()),
+            ..self
+        }
+    }
+
+    pub fn set_main_file<T: ToString>(self, code: T) -> ClientBuilder {
+        ClientBuilder {
+            main_file: Some(code.to_string()),
+            ..self
+        }
+    }
+
+    pub fn add_files<T: ToString>(self, files: Vec<T>) -> ClientBuilder {
         ClientBuilder {
             add_files: files.iter().map(|s| s.to_string()).collect(),
             ..self
@@ -143,6 +175,16 @@ impl ClientBuilder {
         Ok(Client {
             language,
             main_file,
+            runtime_url: format!(
+                "{}/{}{RUNTIMES_PATH}",
+                self.base_url,
+                self.api_version.to_string(),
+            ),
+            exec_url: format!(
+                "{}/{}{EXECUTE_PATH}",
+                self.base_url,
+                self.api_version.to_string(),
+            ),
             add_files: self.add_files,
             client: http_client,
         })
