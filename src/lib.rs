@@ -1,4 +1,4 @@
 pub mod client;
 pub mod consts;
-pub mod errors;
+pub mod error;
 pub mod lang;

@@ -2,7 +2,7 @@ use serde::Serialize;
 
 use crate::{
     consts::{EXECUTE_URL, RUNTIMES_URL},
-    errors::Errors,
+    error::Error,
     lang::{ApiResponse, Language, Response},
 };
 
@@ -53,10 +53,10 @@ impl Client {
             .and_then(|l| Some(l.version.clone())))
     }
 
-    pub async fn execute(self) -> Result<Response, Errors> {
+    pub async fn execute(self) -> Result<Response, Error> {
         let version = match self.get_lang_version().await {
-            Err(err) => return Err(Errors::Unknown(err.to_string())),
-            Ok(None) => return Err(Errors::InvalidLanguage),
+            Err(err) => return Err(Error::Unknown(err.to_string())),
+            Ok(None) => return Err(Error::InvalidLanguage),
             Ok(Some(v)) => v,
         };
         let mut files = vec![FileData {
@@ -84,14 +84,14 @@ impl Client {
             .send()
             .await;
         let data = match data {
-            Err(e) => return Err(Errors::Unknown(e.to_string())),
+            Err(e) => return Err(Error::Unknown(e.to_string())),
             Ok(res) => res,
         };
 
         match data.json::<ApiResponse>().await {
             Ok(ApiResponse::Good(response)) => Ok(response),
-            Ok(ApiResponse::Error(error)) => Err(Errors::Unknown(error.message().to_owned())),
-            Err(err) => Err(Errors::Unknown(err.to_string())),
+            Ok(ApiResponse::Error(error)) => Err(Error::Unknown(error.message().to_owned())),
+            Err(err) => Err(Error::Unknown(err.to_string())),
         }
     }
 }
@@ -132,9 +132,9 @@ impl ClientBuilder {
         }
     }
 
-    pub fn build(self) -> Result<Client, Errors> {
-        let language = self.language.ok_or(Errors::MissingLang)?;
-        let main_file = self.main_file.ok_or(Errors::MissingMain)?;
+    pub fn build(self) -> Result<Client, Error> {
+        let language = self.language.ok_or(Error::MissingLang)?;
+        let main_file = self.main_file.ok_or(Error::MissingMain)?;
 
         let http_client = reqwest::ClientBuilder::new()
             .user_agent("fewwis-bot/@romancitodev")

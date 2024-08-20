@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum Errors {
+pub enum Error {
     #[error("Unknown language. See the API instead.")]
     UnknownLang,
     #[error("Missing language.")]
