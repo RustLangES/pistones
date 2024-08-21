@@ -1,3 +1,5 @@
+use std::{cell::RefCell, fmt::Display};
+
 use serde::Serialize;
 
 use crate::{
@@ -20,173 +22,223 @@ use crate::{
 /// run_timeout (optional) The maximum time allowed for the run stage to finish before bailing out in milliseconds. Must be a number or left out. Defaults to 3000 (3 seconds).
 /// compile_memory_limit (optional) The maximum amount of memory the compile stage is allowed to use in bytes. Must be a number or left out. Defaults to -1 (no limit)
 /// run_memory_limit (optional) The maximum amount of memory the run stage is allowed to use in bytes. Must be a number or left out. Defaults to -1 (no limit)#[derive(Serialize)]
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 struct Data {
     language: String,
     version: String,
     files: Vec<FileData>,
 }
 
-#[derive(Serialize)]
-struct FileData {
+#[derive(Clone, Serialize)]
+pub struct FileData {
     name: Option<String>,
     content: String,
 }
 
+#[derive(Clone, Copy, Default)]
 pub enum ApiVersion {
+    #[default]
     V2,
+}
+
+impl Display for ApiVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ApiVersion::V2 => write!(f, "api/v2"),
+        }
+    }
+}
+
+fn build_url(base_url: &str, api_version: ApiVersion, path: &str) -> String {
+    format!("{base_url}/{api_version}{path}")
 }
 
 pub struct Client {
     exec_url: String,
     runtime_url: String,
-    language: String,
-    main_file: String,
-    add_files: Vec<String>,
+    enable_cache: bool,
+    api_version: ApiVersion,
+    cache_lang: RefCell<Vec<Language>>,
     client: reqwest::Client,
 }
 
-impl ToString for ApiVersion {
-    fn to_string(&self) -> String {
-        match self {
-            ApiVersion::V2 => format!("api/v2"),
-        }
-    }
-}
-
 impl Client {
-    async fn get_lang_version(&self) -> Result<Option<String>, Error> {
-        let result = self.client.get(&self.runtime_url).send().await?;
-        let json = result.json::<Vec<Language>>().await?;
-        Ok(json
-            .iter()
-            .find(|lang| (lang.language == self.language) | (lang.aliases.contains(&self.language)))
-            .and_then(|l| Some(l.version.clone())))
-    }
+    pub async fn new() -> Result<Self, Error> {
+        let api_version = ApiVersion::default();
+        let runtime_url = build_url("https://emkc.org", api_version, RUNTIMES_PATH);
+        let client = reqwest::ClientBuilder::new()
+            .user_agent("Automated Piston Agent")
+            .build()?;
 
-    pub async fn execute(self) -> Result<Response, Error> {
-        let Some(version) = self.get_lang_version().await? else {
-            return Err(Error::InvalidLanguage);
-        };
-        let mut files = vec![FileData {
-            name: None,
-            content: self.main_file,
-        }];
-        files.extend(
-            self.add_files
-                .iter()
-                .map(|code| FileData {
-                    name: None,
-                    content: code.to_owned(),
-                })
-                .collect::<Vec<_>>(),
-        );
-
-        let data = self
-            .client
-            .post(&self.exec_url)
-            .json(&Data {
-                language: self.language,
-                version,
-                files,
-            })
+        let cache_lang = client
+            .get(&runtime_url)
             .send()
+            .await?
+            .json::<Vec<Language>>()
             .await?;
 
-        match data.json::<ApiResponse>().await {
-            Ok(ApiResponse::Good(response)) => Ok(response),
-            Ok(ApiResponse::Error(error)) => Err(Error::Unknown(error.message().to_owned())),
-            Err(err) => Err(Error::Unknown(err.to_string())),
-        }
+        Ok(Self {
+            client,
+            runtime_url,
+            api_version,
+            enable_cache: true,
+            cache_lang: RefCell::new(cache_lang),
+            exec_url: build_url("https://emkc.org", api_version, EXECUTE_PATH),
+        })
     }
-}
 
-pub struct ClientBuilder {
-    language: Option<String>,
-    main_file: Option<String>,
-    add_files: Vec<String>,
-    base_url: String,
-    api_version: ApiVersion,
-    agent: String,
-}
-
-impl ClientBuilder {
-    pub fn new() -> ClientBuilder {
+    pub fn api_version(self, version: ApiVersion) -> Self {
         Self {
-            language: None,
-            main_file: None,
-            add_files: vec![],
-            base_url: "https://emkc.org".to_owned(),
-            api_version: ApiVersion::V2,
-            agent: "Automated Piston Agent".to_owned(),
-        }
-    }
-
-    pub fn set_base_url<T: ToString>(self, url: T) -> ClientBuilder {
-        ClientBuilder {
-            base_url: url.to_string(),
-            ..self
-        }
-    }
-
-    pub fn set_version(self, version: ApiVersion) -> ClientBuilder {
-        ClientBuilder {
             api_version: version,
             ..self
         }
     }
 
-    pub fn set_lang<T: ToString>(self, lang: T) -> ClientBuilder {
-        ClientBuilder {
-            language: Some(lang.to_string()),
+    pub fn base_url<T: AsRef<str>>(self, url: T) -> Self {
+        let runtime_url = build_url(url.as_ref(), self.api_version, RUNTIMES_PATH);
+        let exec_url = build_url("https://emkc.org", self.api_version, EXECUTE_PATH);
+        Self {
+            runtime_url,
+            exec_url,
             ..self
         }
     }
 
-    pub fn set_main_file<T: ToString>(self, code: T) -> ClientBuilder {
-        ClientBuilder {
-            main_file: Some(code.to_string()),
+    pub fn disable_cache(self) -> Self {
+        Self {
+            enable_cache: false,
             ..self
         }
     }
 
-    pub fn add_files<T: ToString>(self, files: Vec<T>) -> ClientBuilder {
-        ClientBuilder {
-            add_files: files.iter().map(|s| s.to_string()).collect(),
-            ..self
+    pub fn user_agent<T: AsRef<str>>(self, agent: T) -> Result<Self, Error> {
+        let client = reqwest::ClientBuilder::new()
+            .user_agent(agent.as_ref())
+            .build()?;
+
+        Ok(Self { client, ..self })
+    }
+
+    pub fn custom_client(self, client: reqwest::Client) -> Result<Self, Error> {
+        Ok(Self { client, ..self })
+    }
+
+    pub async fn refresh_cache(self) -> Result<Self, Error> {
+        let result = self.client.get(&self.runtime_url).send().await?;
+        let result = result.json::<Vec<Language>>().await?;
+        self.cache_lang.replace(result);
+        Ok(self)
+    }
+
+    pub async fn get_languages(&self) -> Result<Vec<Language>, Error> {
+        if self.enable_cache {
+            Ok(self.cache_lang.take())
+        } else {
+            let result = self.client.get(&self.runtime_url).send().await?;
+            Ok(result.json().await?)
         }
     }
 
-    pub fn user_agent<T: ToString>(self, agent: T) -> ClientBuilder {
-        ClientBuilder {
-            agent: agent.to_string(),
-            ..self
+    pub async fn lang_version<T: ToString>(&self, lang: T) -> Result<String, Error> {
+        let langs = if self.enable_cache {
+            self.cache_lang.take()
+        } else {
+            self.client
+                .get(&self.runtime_url)
+                .send()
+                .await?
+                .json::<Vec<Language>>()
+                .await?
+        };
+
+        langs
+            .iter()
+            .find(|l| (l.language == lang.to_string()) | (l.aliases.contains(&lang.to_string())))
+            .map(|l| l.version.clone())
+            .ok_or(Error::UnknownLang)
+    }
+
+    async fn exec<T: ToString, U: ToString>(
+        &self,
+        lang: T,
+        lang_version: U,
+        files: Vec<FileData>,
+    ) -> Result<Response, Error> {
+        let data = self
+            .client
+            .post(&self.exec_url)
+            .json(&Data {
+                files,
+                language: lang.to_string(),
+                version: lang_version.to_string(),
+            })
+            .send()
+            .await?;
+
+        match data.json::<ApiResponse>().await? {
+            ApiResponse::Good(response) => Ok(response),
+            ApiResponse::Error(error) => Err(Error::Unknown(error.message().to_owned())),
         }
     }
 
-    pub fn build(self) -> Result<Client, Error> {
-        let language = self.language.ok_or(Error::MissingLang)?;
-        let main_file = self.main_file.ok_or(Error::MissingMain)?;
+    pub async fn run_files<T, U, I>(&self, lang: T, content: I) -> Result<Response, Error>
+    where
+        T: ToString + Clone,
+        U: Into<FileData>,
+        I: IntoIterator<Item = U>,
+    {
+        let version = self.lang_version(lang.clone()).await?;
 
-        let http_client = reqwest::ClientBuilder::new()
-            .user_agent(&self.agent)
-            .build()
-            .unwrap();
-        Ok(Client {
-            language,
-            main_file,
-            runtime_url: format!(
-                "{}/{}{RUNTIMES_PATH}",
-                self.base_url,
-                self.api_version.to_string(),
-            ),
-            exec_url: format!(
-                "{}/{}{EXECUTE_PATH}",
-                self.base_url,
-                self.api_version.to_string(),
-            ),
-            add_files: self.add_files,
-            client: http_client,
-        })
+        self.exec(lang, version, content.into_iter().map(Into::into).collect())
+            .await
+    }
+
+    pub async fn run<T: ToString + Clone, U: ToString>(
+        &self,
+        lang: T,
+        content: U,
+    ) -> Result<Response, Error> {
+        let version = self.lang_version(lang.clone()).await?;
+
+        self.exec(
+            lang,
+            version,
+            std::iter::once(FileData {
+                name: None,
+                content: content.to_string(),
+            })
+            .collect(),
+        )
+        .await
+    }
+}
+
+impl From<&str> for FileData {
+    fn from(content: &str) -> Self {
+        Self {
+            name: None,
+            content: content.to_owned(),
+        }
+    }
+}
+
+impl From<String> for FileData {
+    fn from(content: String) -> Self {
+        Self {
+            name: None,
+            content,
+        }
+    }
+}
+
+impl<T> From<(T, T)> for FileData
+where
+    T: ToString,
+{
+    fn from((name, content): (T, T)) -> Self {
+        Self {
+            name: Some(name.to_string()),
+            content: content.to_string(),
+        }
     }
 }

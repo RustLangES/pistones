@@ -1,60 +1,53 @@
 #[cfg(test)]
 mod client_tests {
-    use pistones::client::ClientBuilder;
+    use pistones::client::Client;
 
     #[tokio::test]
     async fn creating_client() {
-        let builder = ClientBuilder::new()
-            .set_lang("rs")
-            .set_main_file("fn main() { println!(\"Hello, world!\") }")
-            .build()
-            .map_err(|err| println!("{:?}", err));
+        let builder = Client::new()
+            .await
+            .unwrap()
+            .run("rs", "fn main() { println!(\"Hello, world!\") }")
+            .await;
 
-        assert!(matches!(builder, Ok(_)));
+        assert!(builder.is_ok());
     }
 
     #[tokio::test]
     async fn non_passing_main_file() {
-        let builder = ClientBuilder::new().set_lang("rs").build();
+        let builder = Client::new().await.unwrap().run("rs", "").await;
 
-        assert!(matches!(builder, Err(_)));
+        assert!(builder.is_err());
     }
 
     #[tokio::test]
     async fn non_passing_lang() {
-        let builder = ClientBuilder::new()
-            .set_main_file("fn main() { println!(\"Hello, world!\") }")
-            .build();
+        let builder = Client::new()
+            .await
+            .unwrap()
+            .run("rs", "fn main() { println!(\"Hello, world!\") }")
+            .await;
 
-        assert!(matches!(builder, Err(_)));
-    }
-
-    #[tokio::test]
-    async fn sending_post() {
-        let client = ClientBuilder::new()
-            .set_lang("rust")
-            .set_main_file("fn main() { println!(\"Hello, world!\") }")
-            .build()
-            .unwrap();
-
-        let result = client.execute().await.map_err(|err| println!("{:?}", err));
-
-        assert!(matches!(result, Ok(_)));
+        assert!(builder.is_err());
     }
 
     #[tokio::test]
     async fn setting_multiple_files() {
-        let client = ClientBuilder::new()
-            .set_lang("rs")
-            .set_main_file("fn main() { println!(\"Hello, World!\") }")
-            // .add_files(vec!["pub mod add(a: i32, b: i32) -> i32 { a + b }"])
-            .build()
-            .unwrap();
-        let response = client.execute().await.unwrap();
-        let data = response.data();
-        let output = data.output();
-        let signal = data.signal();
-        let code = response.data().code();
-        println!("output: {output} - {signal:?} - {code}");
+        let client = Client::new()
+            .await
+            .unwrap()
+            .run_files(
+                "rs",
+                [
+                    ("utils.rs", "pub fn sum(a: i32, b: i32) -> i32 { a + b }"),
+                    (
+                        "main.rs",
+                        "mod utils;use utils::*;fn main() { println!(\"Result: {}\", sum(5, 6)) }",
+                    ),
+                ],
+            )
+            .await;
+
+        assert!(client.is_ok())
     }
 }
