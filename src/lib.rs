@@ -2,6 +2,8 @@ pub mod client;
 pub mod error;
 pub mod lang;
 
+extern crate reqwest;
+
 /// Use only for GET method
 pub const RUNTIMES_PATH: &str = "/piston/runtimes";
 /// Use only for POST method
