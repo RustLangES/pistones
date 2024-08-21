@@ -1,14 +1,12 @@
 use serde::Deserialize;
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct Language {
-    pub(crate) language: String,
-    pub(crate) version: String,
-    pub(crate) aliases: AliasesLang,
-    pub(crate) runtime: Option<String>,
+#[derive(Clone, Debug, Deserialize)]
+pub struct Language {
+    pub language: String,
+    pub version: String,
+    pub aliases: Vec<String>,
+    pub runtime: Option<String>,
 }
-
-type AliasesLang = Vec<String>;
 
 #[derive(Deserialize)]
 #[serde(untagged)]
@@ -71,10 +69,6 @@ impl RunData {
     }
 
     pub fn signal(&self) -> Option<&str> {
-        if let Some(signal) = &self.signal {
-            Some(&signal)
-        } else {
-            None
-        }
+        self.signal.as_deref()
     }
 }
