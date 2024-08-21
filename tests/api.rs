@@ -48,6 +48,6 @@ mod client_tests {
             )
             .await;
 
-        assert!(client.is_ok())
+        assert!(client.is_ok());
     }
 }

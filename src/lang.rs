@@ -23,14 +23,17 @@ pub struct Response {
 }
 
 impl Response {
+    #[must_use]
     pub fn language(&self) -> &str {
         self.language.as_ref()
     }
 
+    #[must_use]
     pub fn version(&self) -> &str {
         self.version.as_ref()
     }
 
+    #[must_use]
     pub fn data(&self) -> &RunData {
         &self.run
     }
@@ -42,6 +45,7 @@ pub struct ErrorResponse {
 }
 
 impl ErrorResponse {
+    #[must_use]
     pub fn message(&self) -> &str {
         self.message.as_ref()
     }
@@ -56,18 +60,22 @@ pub struct RunData {
 }
 
 impl RunData {
+    #[must_use]
     pub fn stdout(&self) -> &str {
         self.stdout.as_ref()
     }
 
+    #[must_use]
     pub fn output(&self) -> &str {
         self.output.as_ref()
     }
 
+    #[must_use]
     pub fn code(&self) -> u8 {
         self.code
     }
 
+    #[must_use]
     pub fn signal(&self) -> Option<&str> {
         self.signal.as_deref()
     }
