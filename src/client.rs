@@ -8,35 +8,27 @@ use crate::{
     EXECUTE_PATH, RUNTIMES_PATH,
 };
 
-/// `POST` /api/v2/execute This endpoint requests execution of some arbitrary code.
-///
-/// language (required) The language to use for execution, must be a string and must be installed.
-/// version (required) The version of the language to use for execution, must be a string containing a `SemVer` selector for the version or the specific version number to use.
-/// files (required) An array of files containing code or other data that should be used for execution. The first file in this array is considered the main file.
-/// files[].name (optional) The name of the file to upload, must be a string containing no path or left out.
-/// files[].content (required) The content of the files to upload, must be a string containing text to write.
-/// files[].encoding (optional) The encoding scheme used for the file content. One of base64, hex or utf8. Defaults to utf8.
-/// stdin (optional) The text to pass as stdin to the program. Must be a string or left out. Defaults to blank string.
-/// args (optional) The arguments to pass to the program. Must be an array or left out. Defaults to [].
-/// `compile_timeout` (optional) The maximum time allowed for the compile stage to finish before bailing out in milliseconds. Must be a number or left out. Defaults to 10000 (10 seconds).
-/// `run_timeout` (optional) The maximum time allowed for the run stage to finish before bailing out in milliseconds. Must be a number or left out. Defaults to 3000 (3 seconds).
-/// `compile_memory_limit` (optional) The maximum amount of memory the compile stage is allowed to use in bytes. Must be a number or left out. Defaults to -1 (no limit)
-/// `run_memory_limit` (optional) The maximum amount of memory the run stage is allowed to use in bytes. Must be a number or left out. Defaults to -1 (no limit)#[derive(Serialize)]
 #[derive(Clone, Serialize)]
 struct Data {
+    // The programming language for the code
     language: String,
+    // The specific version of the language to use
     version: String,
+    // A vector containing files associated with the code
     files: Vec<FileData>,
 }
 
 #[derive(Clone, Serialize)]
 pub struct FileData {
+    // Optional name for the file
     name: Option<String>,
+    // The content of the file
     content: String,
 }
 
 #[derive(Clone, Copy, Default)]
 pub enum ApiVersion {
+    // Represents the default API version
     #[default]
     V2,
 }
@@ -63,6 +55,7 @@ pub struct Client {
 }
 
 impl Client {
+    // Creates a new Client instance with default settings.
     pub async fn new() -> Result<Self, Error> {
         let api_version = ApiVersion::default();
         let runtime_url = build_url("https://emkc.org", api_version, RUNTIMES_PATH);
@@ -87,6 +80,7 @@ impl Client {
         })
     }
 
+    // Sets the API version to be used in subsequent calls
     pub fn api_version(self, version: ApiVersion) -> Self {
         Self {
             api_version: version,
@@ -94,6 +88,7 @@ impl Client {
         }
     }
 
+    // Sets the base URL for the Piston API. Rebuilds internal URLs
     pub fn base_url<T: AsRef<str>>(self, url: T) -> Self {
         let runtime_url = build_url(url.as_ref(), self.api_version, RUNTIMES_PATH);
         let exec_url = build_url("https://emkc.org", self.api_version, EXECUTE_PATH);
@@ -104,6 +99,7 @@ impl Client {
         }
     }
 
+    // Disables language information caching
     pub fn disable_cache(self) -> Self {
         Self {
             enable_cache: false,
@@ -111,6 +107,7 @@ impl Client {
         }
     }
 
+    // Sets a custom user agent for HTTP requests
     pub fn user_agent<T: AsRef<str>>(self, agent: T) -> Result<Self, Error> {
         let client = reqwest::ClientBuilder::new()
             .user_agent(agent.as_ref())
@@ -119,10 +116,12 @@ impl Client {
         Ok(Self { client, ..self })
     }
 
+    // Sets a custom `reqwest::Client` instance for HTTP requests
     pub fn custom_client(self, client: reqwest::Client) -> Result<Self, Error> {
         Ok(Self { client, ..self })
     }
 
+    // Updates the cached language information from the Piston API
     pub async fn refresh_cache(self) -> Result<Self, Error> {
         let result = self.client.get(&self.runtime_url).send().await?;
         let result = result.json::<Vec<Language>>().await?;
@@ -130,6 +129,8 @@ impl Client {
         Ok(self)
     }
 
+    // Retrieves a list of supported languages and their versions.
+    // Uses the language cache if enabled, otherwise fetches data from the API.
     pub async fn get_languages(&self) -> Result<Vec<Language>, Error> {
         if self.enable_cache {
             Ok(self.cache_lang.take())
@@ -139,6 +140,8 @@ impl Client {
         }
     }
 
+    // Gets the version for a specific programming language.
+    // Uses the language cache if enabled, otherwise fetches data from the API.
     pub async fn lang_version<T: ToString>(&self, lang: T) -> Result<String, Error> {
         let langs = if self.enable_cache {
             self.cache_lang.take()
@@ -158,6 +161,8 @@ impl Client {
             .ok_or(Error::UnknownLang)
     }
 
+    // Executes code provided as language, version, and a list of files.
+    // Sends a POST request to the Piston API with the code data.
     async fn exec<T: ToString, U: ToString>(
         &self,
         lang: T,
@@ -181,6 +186,8 @@ impl Client {
         }
     }
 
+    // Executes code provided as language and an iterator of `FileData` structs.
+    // Retrieves the language version and calls `exec` internally.
     pub async fn run_files<T, U, I>(&self, lang: T, content: I) -> Result<Response, Error>
     where
         T: ToString + Clone,
@@ -193,6 +200,8 @@ impl Client {
             .await
     }
 
+    // Executes code provided as language, version, and content string.
+    // Creates a single `FileData` struct from the content and calls `exec` internally.
     pub async fn run_with_version<T: ToString + Clone>(
         &self,
         lang: T,
@@ -211,6 +220,8 @@ impl Client {
         .await
     }
 
+    // Executes code provided as language and content string.
+    // Retrieves the language version and calls `run_with_version` internally.
     pub async fn run<T: ToString + Clone, U: ToString>(
         &self,
         lang: T,
