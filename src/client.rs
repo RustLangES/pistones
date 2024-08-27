@@ -193,6 +193,24 @@ impl Client {
             .await
     }
 
+    pub async fn run_with_version<T: ToString + Clone>(
+        &self,
+        lang: T,
+        version: T,
+        content: T,
+    ) -> Result<Response, Error> {
+        self.exec(
+            lang,
+            version,
+            std::iter::once(FileData {
+                name: None,
+                content: content.to_string(),
+            })
+            .collect(),
+        )
+        .await
+    }
+
     pub async fn run<T: ToString + Clone, U: ToString>(
         &self,
         lang: T,
