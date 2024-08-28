@@ -1,9 +1,9 @@
-use thiserror::Error;
-
 //! **Piston Client Library Error Types**
 //!
 //! This module defines error types that can occur while using the Piston client library.
+use thiserror::Error;
 
+/// Represents various errors that can occur during interactions with the Piston API.
 #[derive(Error, Debug)]
 /// Represents various errors that can occur during interactions with the Piston API.
 pub enum Error {

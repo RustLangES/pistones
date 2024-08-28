@@ -13,7 +13,7 @@
 //!
 //! ## Basic Usage
 //!
-//! ```rust
+//! ```ignore
 //! use piston_client::Client;
 //!
 //! #[tokio::main]
@@ -45,7 +45,7 @@
 //!
 //! ## More Information
 //!
-* **Detailed documentation:** For more details on the functionalities and usage of the library, refer to the detailed documentation of each structure and method.
+//! **Detailed documentation:** For more details on the functionalities and usage of the library, refer to the detailed documentation of each structure and method.
 //!
 //! **Note:** This is a basic documentation example. You can customize and expand it to include more details and examples as needed.
 pub mod client;

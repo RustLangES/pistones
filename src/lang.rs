@@ -1,6 +1,7 @@
 //! **Piston Client Library Data Structures**
 //!
 //! This module defines several data structures used by the Piston client library to represent languages, API responses, and execution results.
+use serde::Deserialize;
 
 #[derive(Clone, Debug, Deserialize)]
 /// Represents a programming language supported by Piston.
