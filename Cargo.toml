@@ -9,7 +9,7 @@ homepage = "https://github.com/RustLangES/pistones"
 description = "An wrapper for the Piston code execution engine."
 categories = ["api-bindings", "asynchronous"]
 keywords = ["piston-rs", "piston", "emkc", "code", "run"]
-include = ["src/**/*.rs", "Cargo.toml", "rust-toolchain.toml"]
+include = ["src/**/*.rs", "Cargo.toml", "rust-toolchain.toml", "examples/*.rs"]
 
 [dependencies]
 thiserror = "1"
