@@ -26,7 +26,8 @@ The library utilizes an asynchronous programming model. Here's a basic example d
 ```rust
 use piston_client::Client;
 
-#[async fn main() -> Result<(), piston_client::Error>> {
+#[tokio::main]
+fn main() -> Result<(), piston_client::Error>> {
     let mut client = Client::new()?;
 
     // Get the Rust language version
