@@ -1,4 +1,7 @@
-use std::{cell::RefCell, fmt::Display};
+use std::{
+    fmt::Display,
+    sync::{Arc, Mutex},
+};
 
 use serde::Serialize;
 
@@ -50,7 +53,7 @@ pub struct Client {
     runtime_url: String,
     enable_cache: bool,
     api_version: ApiVersion,
-    cache_lang: RefCell<Vec<Language>>,
+    cache_lang: Arc<Mutex<Vec<Language>>>,
     client: reqwest::Client,
 }
 
@@ -75,7 +78,7 @@ impl Client {
             runtime_url,
             api_version,
             enable_cache: true,
-            cache_lang: RefCell::new(cache_lang),
+            cache_lang: Arc::new(Mutex::new(cache_lang)),
             exec_url: build_url("https://emkc.org", api_version, EXECUTE_PATH),
         })
     }
@@ -125,7 +128,7 @@ impl Client {
     pub async fn refresh_cache(self) -> Result<Self, Error> {
         let result = self.client.get(&self.runtime_url).send().await?;
         let result = result.json::<Vec<Language>>().await?;
-        self.cache_lang.replace(result);
+        *self.cache_lang.lock().unwrap() = result;
         Ok(self)
     }
 
@@ -133,7 +136,8 @@ impl Client {
     // Uses the language cache if enabled, otherwise fetches data from the API.
     pub async fn get_languages(&self) -> Result<Vec<Language>, Error> {
         if self.enable_cache {
-            Ok(self.cache_lang.take())
+            let cache = self.cache_lang.as_ref().lock().unwrap();
+            Ok(cache.to_vec())
         } else {
             let result = self.client.get(&self.runtime_url).send().await?;
             Ok(result.json().await?)
@@ -144,7 +148,8 @@ impl Client {
     // Uses the language cache if enabled, otherwise fetches data from the API.
     pub async fn lang_version<T: ToString>(&self, lang: T) -> Result<String, Error> {
         let langs = if self.enable_cache {
-            self.cache_lang.take()
+            let cache = self.cache_lang.as_ref().lock().unwrap();
+            cache.to_vec()
         } else {
             self.client
                 .get(&self.runtime_url)
