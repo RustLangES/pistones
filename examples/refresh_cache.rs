@@ -3,7 +3,7 @@ use pistones::{Client, Error};
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     // Normal client
-    let client = Client::new().await?;
+    let _ = Client::new().await?;
     // Create client with cache disabled
     let client = Client::new().await?.disable_cache();
 
