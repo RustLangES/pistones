@@ -147,7 +147,7 @@ impl Client {
 
     // Retrieves a list of supported languages and their versions.
     // Uses the language cache if enabled, otherwise fetches data from the API.
-    /// # Errors 
+    /// # Errors
     /// It can return an error if the HTTP operation fails.
     /// # Panics
     /// It can panic if the `lock` operation fails
